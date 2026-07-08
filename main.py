@@ -48,16 +48,12 @@ def decode_cursor(c):
 @app.middleware("http")
 async def rate_limit(request: Request, call_next):
 
-    # Pagination should not consume rate limit
-    if request.method == "GET" and request.url.path == "/orders":
-        return await call_next(request)
-
     client = request.headers.get("X-Client-Id", "anonymous")
     now = time.time()
 
     bucket = client_requests.setdefault(client, [])
 
-    # Remove old requests
+    # Remove requests older than 10 seconds
     bucket[:] = [t for t in bucket if now - t < WINDOW]
 
     if len(bucket) >= RATE_LIMIT:
@@ -71,7 +67,6 @@ async def rate_limit(request: Request, call_next):
     bucket.append(now)
 
     return await call_next(request)
-
 
 @app.post("/orders", status_code=201)
 def create_order(
