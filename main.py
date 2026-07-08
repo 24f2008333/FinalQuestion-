@@ -48,6 +48,10 @@ def decode_cursor(c):
 @app.middleware("http")
 async def rate_limit(request: Request, call_next):
 
+    # Do not rate limit order listing pagination
+    if request.method == "GET" and request.url.path == "/orders":
+        return await call_next(request)
+
     client = request.headers.get("X-Client-Id", "anonymous")
     now = time.time()
 
