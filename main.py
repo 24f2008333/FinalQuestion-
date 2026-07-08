@@ -12,13 +12,27 @@ TOTAL_ORDERS = 50
 RATE_LIMIT = 20
 WINDOW = 10
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@app.middleware("http")
+async def rate_limit(request: Request, call_next):
+    # Don't rate limit GET /orders
+    if request.method == "GET" and request.url.path == "/orders":
+        return await call_next(request)
+
+    client = request.headers.get("X-Client-Id", "anonymous")
+    now = time.time()
+
+    bucket = client_requests.setdefault(client, [])
+    bucket[:] = [t for t in bucket if now - t < WINDOW]
+
+    if len(bucket) >= RATE_LIMIT:
+        retry = max(1, int(WINDOW - (now - bucket[0])))
+        return Response(
+            status_code=429,
+            headers={"Retry-After": str(retry)},
+        )
+
+    bucket.append(now)
+    return await call_next(request)
 
 idempotency_store = {}
 client_requests = {}
