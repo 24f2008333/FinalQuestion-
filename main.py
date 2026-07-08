@@ -48,25 +48,29 @@ def decode_cursor(c):
 @app.middleware("http")
 async def rate_limit(request: Request, call_next):
 
+    # Only rate limit when X-Client-Id is provided
     client = request.headers.get("X-Client-Id")
 
-    # If no client id is provided, do not rate limit
-    if not client:
+    if client is None:
         return await call_next(request)
 
     now = time.time()
 
     bucket = client_requests.setdefault(client, [])
 
-    # Remove expired requests
-    bucket[:] = [t for t in bucket if now - t < WINDOW]
+    bucket[:] = [
+        t for t in bucket
+        if now - t < WINDOW
+    ]
 
     if len(bucket) >= RATE_LIMIT:
         retry = max(1, int(WINDOW - (now - bucket[0])))
 
         return Response(
             status_code=429,
-            headers={"Retry-After": str(retry)}
+            headers={
+                "Retry-After": str(retry)
+            }
         )
 
     bucket.append(now)
