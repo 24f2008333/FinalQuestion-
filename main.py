@@ -14,46 +14,9 @@ WINDOW = 10
 
 @app.middleware("http")
 async def rate_limit(request: Request, call_next):
-    # Don't rate limit GET /orders
     if request.method == "GET" and request.url.path == "/orders":
         return await call_next(request)
 
-    client = request.headers.get("X-Client-Id", "anonymous")
-    now = time.time()
-
-    bucket = client_requests.setdefault(client, [])
-    bucket[:] = [t for t in bucket if now - t < WINDOW]
-
-    if len(bucket) >= RATE_LIMIT:
-        retry = max(1, int(WINDOW - (now - bucket[0])))
-        return Response(
-            status_code=429,
-            headers={"Retry-After": str(retry)},
-        )
-
-    bucket.append(now)
-    return await call_next(request)
-
-idempotency_store = {}
-client_requests = {}
-
-class OrderCreate(BaseModel):
-    item: Optional[str] = None
-    quantity: Optional[int] = 1
-
-def encode_cursor(i):
-    return base64.urlsafe_b64encode(str(i).encode()).decode()
-
-def decode_cursor(c):
-    if not c:
-        return 0
-    try:
-        return int(base64.urlsafe_b64decode(c.encode()).decode())
-    except:
-        raise HTTPException(status_code=400, detail="Invalid cursor")
-
-@app.middleware("http")
-async def rate_limit(request: Request, call_next):
     client = request.headers.get("X-Client-Id", "anonymous")
     now = time.time()
 
@@ -68,7 +31,7 @@ async def rate_limit(request: Request, call_next):
         )
 
     bucket.append(now)
-    return await call_next(request)
+    return await call_next(request) 
 
 @app.post("/orders", status_code=201)
 def create_order(order: OrderCreate,
